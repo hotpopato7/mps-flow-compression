@@ -1,0 +1,77 @@
+Solving Knapsack problem
+
+QUBO formulation
+QUBO is defined as 
+full code:
+
+from openqaoa.problems import FromDocplex2IsingModel
+from docplex.mp.model import Model
+
+
+def Knapsack(values, weights, maximum_weight):
+    """Create a docplex model of the problem. (Docplex is a classical solver from IBM)"""
+    n_items = len(values)
+    mdl = Model()
+    x = mdl.binary_var_list(range(n_items), name="x")
+    cost = -mdl.sum(x[i] * values[i] for i in range(n_items))
+    mdl.minimize(cost)
+    mdl.add_constraint(mdl.sum(x[i] * weights[i] for i in range(n_items)) <= maximum_weight)
+    return mdl
+
+
+# Docplex model, we need to convert our problem in this format to use the unbalanced penalization approach
+mdl = Knapsack(values_list, weights_list, maximum_weight)
+lambda_1, lambda_2 = (
+    0.96,
+    0.0371,
+)  # Parameters of the unbalanced penalization function (They are in the main paper)
+ising_hamiltonian = FromDocplex2IsingModel(
+    mdl,
+    unbalanced_const=True,
+    strength_ineq=[lambda_1, lambda_2],  # https://arxiv.org/abs/2211.13914
+).ising_model
+
+h_new = {
+    tuple(i): w for i, w in zip(ising_hamiltonian.terms, ising_hamiltonian.weights) if len(i) == 1
+}
+J_new = {
+    tuple(i): w for i, w in zip(ising_hamiltonian.terms, ising_hamiltonian.weights) if len(i) == 2
+}
+
+samples_unbalanced = samples_dict(
+    qaoa_circuit(gammas, betas, h_new, J_new, num_qubits=n_items), n_items
+)
+values_unbalanced = {
+    sum_values(sample_i, values_list): count
+    for sample_i, count in samples_unbalanced.items()
+    if sum_weight(sample_i, weights_list) <= maximum_weight
+}  # saving only the solutions that fulfill the constraint
+
+print(
+    f"The number of solutions using unbalanced penalization is {samples_unbalanced[opt_str]} out of {shots}"
+)
+
+Code breakdown:
+
+Knapsack problem can be defined directly from openqaoa. By the following problem formulation,
+from openqaoa.problems import Knapsack
+
+knapsack_prob = Knapsack.random_instance(n_items=4, seed=42)
+knapsack_qubo = knapsack_prob.qubo
+
+Using Docplex (IBM's Decision Optimization CPLEX Modeling for Python) to write down the optimization problem in a standard format before it is translated into a quantum-compatible Hamiltonian.
+mdl = Model() # creates an empty optimization model instance where variables, objectives, and constraints can be registered.
+x = mdl.binary_var_list(range(n_items), name="x") # generates a list of binary decision variables (0 or 1) for each item. These variables represent whether an item is chosen (1) or left behind (0).
+cost = -mdl.sum(x[i] * values[i] for i in range(n_items)) # objective function. '-' for maximizing the value
+mdl.add_constraint(mdl.sum(x[i] * weights[i] for i in range(n_items)) <= maximum_weight) # adding constraint - ensures the total weight of the selected items does not exceed the maximum_weight.
+
+ising_hamiltonian = FromDocplex2IsingModel(
+    mdl,
+    unbalanced_const=True,
+    strength_ineq=[lambda_1, lambda_2],  # https://arxiv.org/abs/2211.13914
+).ising_model # OpenQAOA doesn't need Docplex to solve the problem classically; instead, it uses the structured mdl object as an intermediate blueprint.
+
+QAOA require problems to be expressed as Ising spin Hamiltonians or QUBOs
+The unbalanced penalization technique uses optimized penalty parameters to penalize constraint violations efficiently without large number of qubits.
+
+Performance Evaluation: it prints how many times the optimal bitstring (opt_str) was successfully sampled out of the total measurement shots, demonstrating how effectively the unbalanced penalization method guided the quantum optimizer toward valid, optimal solutions.
