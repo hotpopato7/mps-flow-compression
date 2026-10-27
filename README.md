@@ -1,1 +1,1 @@
-# mps-flow-compression
+# QAOA problems into QUBO
