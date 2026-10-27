@@ -4,7 +4,8 @@ QUBO formulation
 QUBO is defined as 
 full code:
 
-from openqaoa.problems import FromDocplex2IsingModel
+
+```from openqaoa.problems import FromDocplex2IsingModel
 from docplex.mp.model import Model
 
 
@@ -19,7 +20,7 @@ def Knapsack(values, weights, maximum_weight):
     return mdl
 
 
-# Docplex model, we need to convert our problem in this format to use the unbalanced penalization approach
+#Docplex model, we need to convert our problem in this format to use the unbalanced penalization approach
 mdl = Knapsack(values_list, weights_list, maximum_weight)
 lambda_1, lambda_2 = (
     0.96,
@@ -50,10 +51,12 @@ values_unbalanced = {
 print(
     f"The number of solutions using unbalanced penalization is {samples_unbalanced[opt_str]} out of {shots}"
 )
+```
 
 Code breakdown:
 
 Knapsack problem can be defined directly from openqaoa. By the following problem formulation,
+```
 from openqaoa.problems import Knapsack
 
 knapsack_prob = Knapsack.random_instance(n_items=4, seed=42)
@@ -70,8 +73,10 @@ ising_hamiltonian = FromDocplex2IsingModel(
     unbalanced_const=True,
     strength_ineq=[lambda_1, lambda_2],  # https://arxiv.org/abs/2211.13914
 ).ising_model # OpenQAOA doesn't need Docplex to solve the problem classically; instead, it uses the structured mdl object as an intermediate blueprint.
+```
 
-QAOA require problems to be expressed as Ising spin Hamiltonians or QUBOs
+QAOA require problems to be expressed as Ising spin Hamiltonians or QUBOs.
+
 The unbalanced penalization technique uses optimized penalty parameters to penalize constraint violations efficiently without large number of qubits.
 
 Performance Evaluation: it prints how many times the optimal bitstring (opt_str) was successfully sampled out of the total measurement shots, demonstrating how effectively the unbalanced penalization method guided the quantum optimizer toward valid, optimal solutions.
